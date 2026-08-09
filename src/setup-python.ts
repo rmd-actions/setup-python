@@ -1,19 +1,19 @@
 import * as core from '@actions/core';
-import * as finder from './find-python';
-import * as finderPyPy from './find-pypy';
-import * as finderGraalPy from './find-graalpy';
+import * as finder from './find-python.js';
+import * as finderPyPy from './find-pypy.js';
+import * as finderGraalPy from './find-graalpy.js';
 import * as path from 'path';
 import * as os from 'os';
+import {fileURLToPath} from 'url';
 import fs from 'fs';
-import {getCacheDistributor} from './cache-distributions/cache-factory';
+import {getCacheDistributor} from './cache-distributions/cache-factory.js';
 import {
   isCacheFeatureAvailable,
   logWarning,
   IS_MAC,
   getVersionInputFromFile,
   getVersionsInputFromPlainFile
-} from './utils';
-import {exec} from '@actions/exec';
+} from './utils.js';
 
 function isPyPyVersion(versionSpec: string) {
   return versionSpec.startsWith('pypy');
@@ -21,19 +21,6 @@ function isPyPyVersion(versionSpec: string) {
 
 function isGraalPyVersion(versionSpec: string) {
   return versionSpec.startsWith('graalpy');
-}
-
-async function installPipPackages(pipInstall: string) {
-  core.info(`Installing pip packages: ${pipInstall}`);
-  try {
-    const installArgs = pipInstall.trim().split(/\s+/);
-    await exec('python', ['-m', 'pip', 'install', ...installArgs]);
-    core.info('Successfully installed pip packages');
-  } catch (error) {
-    core.setFailed(
-      `Failed to install pip packages from "${pipInstall}". Please verify that the package names, versions, or requirements files provided are correct and installable, that the specified packages and versions can be resolved from PyPI or the configured package index, and that your network connection is stable and allows access to the package index.`
-    );
-  }
 }
 
 async function cacheDependencies(cache: string, pythonVersion: string) {
@@ -159,16 +146,16 @@ async function run() {
       if (cache && isCacheFeatureAvailable()) {
         await cacheDependencies(cache, pythonVersion);
       }
-      const pipInstall = core.getInput('pip-install');
-      if (pipInstall) {
-        await installPipPackages(pipInstall);
-      }
     } else {
       core.warning(
         'The `python-version` input is not set.  The version of Python currently in `PATH` will be used.'
       );
     }
-    const matchersPath = path.join(__dirname, '../..', '.github');
+    const matchersPath = path.join(
+      path.dirname(fileURLToPath(import.meta.url)),
+      '../..',
+      '.github'
+    );
     core.info(`##[add-matcher]${path.join(matchersPath, 'python.json')}`);
   } catch (err) {
     core.setFailed((err as Error).message);
