@@ -22,18 +22,18 @@ jobs:
       matrix:
         os:
           [
-            macos-latest,
-            windows-latest,
             ubuntu-22.04,
-            ubuntu-22.04-arm,
-            macos-15-intel,
             ubuntu-latest,
-            ubuntu-24.04-arm
+            ubuntu-24.04-arm,
+            windows-latest,
+            windows-11-arm,
+            macos-15-intel,
+            macos-latest
           ]
-        python: [3.13.0t, 3.13.1t, 3.13.2t]
+        python: [3.13.14t, 3.14.6t]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: setup-python ${{ matrix.python }}
         id: setup-python
@@ -59,18 +59,18 @@ jobs:
       matrix:
         os:
           [
-            macos-latest,
-            windows-latest,
             ubuntu-22.04,
-            ubuntu-22.04-arm,
-            macos-15-intel,
             ubuntu-latest,
-            ubuntu-24.04-arm
+            ubuntu-24.04-arm,
+            windows-latest,
+            windows-11-arm,
+            macos-15-intel,
+            macos-latest
           ]
-        python: [3.13.0t, 3.13.1t, 3.13.2t]
+        python: [3.13.14t, 3.14.6t]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: build-version-file ${{ matrix.python }}
         run: echo ${{ matrix.python }} > .python-version
@@ -99,18 +99,18 @@ jobs:
       matrix:
         os:
           [
-            macos-latest,
-            windows-latest,
             ubuntu-22.04,
-            ubuntu-22.04-arm,
-            macos-15-intel,
             ubuntu-latest,
-            ubuntu-24.04-arm
+            ubuntu-24.04-arm,
+            windows-latest,
+            windows-11-arm,
+            macos-15-intel,
+            macos-latest
           ]
-        python: [3.13.0t, 3.13.1t, 3.13.2t]
+        python: [3.13.14t, 3.14.6t]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: build-version-file ${{ matrix.python }}
         run: echo ${{ matrix.python }} > .python-version
@@ -137,18 +137,18 @@ jobs:
       matrix:
         os:
           [
-            macos-latest,
-            windows-latest,
             ubuntu-22.04,
-            ubuntu-22.04-arm,
-            macos-15-intel,
             ubuntu-latest,
-            ubuntu-24.04-arm
+            ubuntu-24.04-arm,
+            windows-latest,
+            windows-11-arm,
+            macos-15-intel,
+            macos-latest
           ]
-        python: [3.13.0, 3.13.1, 3.13.2]
+        python: [3.13.14, 3.14.6]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: build-version-file ${{ matrix.python }}
         run: |
@@ -178,18 +178,18 @@ jobs:
       matrix:
         os:
           [
-            macos-latest,
-            windows-latest,
             ubuntu-22.04,
-            ubuntu-22.04-arm,
-            macos-15-intel,
             ubuntu-latest,
-            ubuntu-24.04-arm
+            ubuntu-24.04-arm,
+            windows-latest,
+            windows-11-arm,
+            macos-15-intel,
+            macos-latest
           ]
-        python: [3.13.0, 3.13.1, 3.13.2]
+        python: [3.13.14, 3.14.6]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: build-version-file ${{ matrix.python }}
         run: |
@@ -219,18 +219,18 @@ jobs:
       matrix:
         os:
           [
-            macos-latest,
-            windows-latest,
             ubuntu-22.04,
-            ubuntu-22.04-arm,
-            macos-15-intel,
             ubuntu-latest,
-            ubuntu-24.04-arm
+            ubuntu-24.04-arm,
+            windows-latest,
+            windows-11-arm,
+            macos-15-intel,
+            macos-latest
           ]
-        python: [3.13.0t, 3.13.1t, 3.13.2t, 3.14t-dev]
+        python: [3.13.14t, 3.14.6t, 3.15t-dev]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: build-tool-versions-file ${{ matrix.python }}
         run: |
@@ -250,18 +250,18 @@ jobs:
       matrix:
         os:
           [
-            macos-latest,
-            windows-latest,
             ubuntu-22.04,
-            ubuntu-22.04-arm,
-            macos-15-intel,
             ubuntu-latest,
-            ubuntu-24.04-arm
+            ubuntu-24.04-arm,
+            windows-latest,
+            windows-11-arm,
+            macos-15-intel,
+            macos-latest
           ]
-        python: [3.13t, 3.14t-dev]
+        python: [3.13t, 3.15t-dev]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: build-version-file ${{ matrix.python }}
         run: |
@@ -290,18 +290,18 @@ jobs:
       matrix:
         os:
           [
-            macos-latest,
-            windows-latest,
             ubuntu-22.04,
-            ubuntu-22.04-arm,
-            macos-15-intel,
             ubuntu-latest,
-            ubuntu-24.04-arm
+            ubuntu-24.04-arm,
+            windows-latest,
+            windows-11-arm,
+            macos-15-intel,
+            macos-latest
           ]
-        python: [3.13.0t, 3.13.1t, 3.13.2t, 3.14t-dev]
+        python: [3.13.14t, 3.14.6t, 3.15t-dev]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: build-version-file ${{ matrix.python }}
         run: |
@@ -323,30 +323,30 @@ jobs:
         run: python -c 'import math; print(math.factorial(5))'
 
   setup-pre-release-version-from-manifest:
-    name: Setup 3.14.0-alpha.6 ${{ matrix.os }}
+    name: Setup 3.15.0-beta.3 ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os:
           [
-            macos-latest,
-            windows-latest,
             ubuntu-22.04,
-            ubuntu-22.04-arm,
-            macos-15-intel,
             ubuntu-latest,
-            ubuntu-24.04-arm
+            ubuntu-24.04-arm,
+            windows-latest,
+            windows-11-arm,
+            macos-15-intel,
+            macos-latest
           ]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: setup-python 3.14.0-alpha.6
+      - name: setup-python 3.15.0-beta.3
         id: setup-python
         uses: ./
         with:
-          python-version: '3.14.0-alpha.6'
+          python-version: '3.15.0-beta.3'
           freethreaded: true
 
       - name: Check python-path
@@ -360,67 +360,67 @@ jobs:
         run: python -c 'import math; print(math.factorial(5))'
 
   setup-dev-version:
-    name: Setup 3.14t-dev ${{ matrix.os }}
+    name: Setup 3.15t-dev ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os:
           [
-            macos-latest,
-            windows-latest,
             ubuntu-22.04,
-            ubuntu-22.04-arm,
-            ubuntu-24.04-arm,
             ubuntu-latest,
-            macos-15-intel
+            ubuntu-24.04-arm,
+            windows-latest,
+            windows-11-arm,
+            macos-15-intel,
+            macos-latest
           ]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: setup-python 3.14t-dev
+      - name: setup-python 3.15t-dev
         id: setup-python
         uses: ./
         with:
-          python-version: '3.14t-dev'
+          python-version: '3.15t-dev'
 
       - name: Check python-path
         run: ./__tests__/check-python-path.sh '${{ steps.setup-python.outputs.python-path }}'
         shell: bash
 
       - name: Validate version
-        run: ${{ startsWith(steps.setup-python.outputs.python-version, '3.14.') }}
+        run: ${{ startsWith(steps.setup-python.outputs.python-version, '3.15.') }}
         shell: bash
 
       - name: Run simple code
         run: python -c 'import math; print(math.factorial(5))'
 
   setup-prerelease-version:
-    name: Setup 3.14t ${{ matrix.os }}
+    name: Setup 3.15t ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os:
           [
-            macos-latest,
-            windows-latest,
             ubuntu-22.04,
-            ubuntu-22.04-arm,
-            ubuntu-24.04-arm,
             ubuntu-latest,
-            macos-15-intel
+            ubuntu-24.04-arm,
+            windows-latest,
+            windows-11-arm,
+            macos-15-intel,
+            macos-latest
           ]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: setup-python 3.14t
+      - name: setup-python 3.15t
         id: setup-python
         uses: ./
         with:
-          python-version: '3.14t'
+          python-version: '3.15t'
           allow-prereleases: true
 
       - name: Check python-path
@@ -428,7 +428,7 @@ jobs:
         shell: bash
 
       - name: Validate version
-        run: ${{ startsWith(steps.setup-python.outputs.python-version, '3.14.') }}
+        run: ${{ startsWith(steps.setup-python.outputs.python-version, '3.15.') }}
         shell: bash
 
       - name: Run simple code
@@ -442,18 +442,18 @@ jobs:
       matrix:
         os:
           [
-            macos-latest,
-            windows-latest,
             ubuntu-22.04,
-            ubuntu-22.04-arm,
-            macos-15-intel,
             ubuntu-latest,
-            ubuntu-24.04-arm
+            ubuntu-24.04-arm,
+            windows-latest,
+            windows-11-arm,
+            macos-15-intel,
+            macos-latest
           ]
-        python: [3.13.0t, 3.13.1t, 3.13.2t]
+        python: [3.13.14t, 3.14.6t]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: setup-python ${{ matrix.python }}
         id: setup-python
@@ -475,17 +475,17 @@ jobs:
       matrix:
         os:
           [
-            macos-latest,
-            windows-latest,
             ubuntu-22.04,
-            ubuntu-22.04-arm,
-            ubuntu-24.04-arm,
             ubuntu-latest,
-            macos-15-intel
+            ubuntu-24.04-arm,
+            windows-latest,
+            windows-11-arm,
+            macos-15-intel,
+            macos-latest
           ]
-        python-version: [3.13t, 3.14t-dev]
+        python-version: [3.13t, 3.15t-dev]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Setup Python and check latest
         id: setup-python
         uses: ./
@@ -502,24 +502,24 @@ jobs:
       matrix:
         os:
           [
-            macos-latest,
-            windows-latest,
             ubuntu-22.04,
-            ubuntu-22.04-arm,
-            ubuntu-24.04-arm,
             ubuntu-latest,
-            macos-15-intel
+            ubuntu-24.04-arm,
+            windows-latest,
+            windows-11-arm,
+            macos-15-intel,
+            macos-latest
           ]
     steps:
-      - uses: actions/checkout@v6
-      - name: Setup Python and check latest
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Setup multiple Python versions
         id: setup-python
         uses: ./
         with:
           python-version: |
-            3.13.1t
-            3.13.2t
-            3.14t-dev
+            3.13.14t
+            3.14.6t
+            3.15t-dev
       - name: Verify Python version
         run: ${{ steps.setup-python.outputs.python-path }} -VVV
 
@@ -531,18 +531,18 @@ jobs:
       matrix:
         os:
           [
-            macos-latest,
-            windows-latest,
             ubuntu-22.04,
-            ubuntu-22.04-arm,
-            macos-15-intel,
             ubuntu-latest,
-            ubuntu-24.04-arm
+            ubuntu-24.04-arm,
+            windows-latest,
+            windows-11-arm,
+            macos-15-intel,
+            macos-latest
           ]
-        python: [3.13.1, 3.13.2, 3.14-dev, 3.14.0-alpha.6]
+        python: [3.13.14, 3.14.6, 3.15-dev, 3.15.0-beta.3]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: setup-python ${{ matrix.python }}
         id: setup-python
         uses: ./
