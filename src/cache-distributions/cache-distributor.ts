@@ -1,7 +1,7 @@
 import * as cache from '@actions/cache';
 import * as core from '@actions/core';
-import {getOSInfo, IS_LINUX} from '../utils';
-import {CACHE_DEPENDENCY_BACKUP_PATH} from './constants';
+import {getOSInfo, IS_LINUX} from '../utils.js';
+import {CACHE_DEPENDENCY_BACKUP_PATH} from './constants.js';
 
 export enum State {
   STATE_CACHE_PRIMARY_KEY = 'cache-primary-key',
@@ -60,7 +60,7 @@ abstract class CacheDistributor {
               .join(',')} or ${CACHE_DEPENDENCY_BACKUP_PATH}`
           : this.cacheDependencyPath.split('\n').join(',');
       throw new Error(
-        `No file in ${process.cwd()} matched to [${file}], make sure you have checked out the target repository`
+        `No file in ${process.cwd()} matched to [${file}] for ${this.packageManager}. Make sure you have checked out the target repository, or consider removing the cache step if there are no dependencies to cache.`
       );
     }
 
