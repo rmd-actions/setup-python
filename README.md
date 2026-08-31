@@ -11,6 +11,10 @@ This action provides the following functionality for GitHub Actions users:
 - Optionally caching dependencies for pip, pipenv and poetry
 - Registering problem matchers for error output
 
+## What's new in V7
+
+- Migrated action internals to ESM for compatibility with latest `@actions/*` packages. No changes to action inputs, outputs, or behavior.
+
 ## Breaking changes in V6
 
 - Upgraded action from node20 to node24
@@ -118,7 +122,6 @@ See examples of using `cache` and `cache-dependency-path` for `pipenv` and `poet
 - [Using `setup-python` on GHES](docs/advanced-usage.md#using-setup-python-on-ghes)
 - [Allow pre-releases](docs/advanced-usage.md#allow-pre-releases)
 - [Using the pip-version input](docs/advanced-usage.md#using-the-pip-version-input)
-- [Using the pip-install input](docs/advanced-usage.md#using-the-pip-install-input)
 
 ## Recommended permissions
 
