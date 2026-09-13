@@ -36,7 +36,7 @@ jobs:
             python: 3.10.11
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: setup-python ${{ matrix.python }}
         id: setup-python
@@ -61,6 +61,32 @@ jobs:
       - name: Run simple code
         run: python -c 'import math; print(math.factorial(5))'
 
+  setup-versions-via-mirror-input:
+    name: 'Setup via explicit mirror input: ${{ matrix.os }}'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # The refs/heads/ form serves the same manifest as the default mirror and
+      # exercises the refs/heads/{branch} -> {branch} parsing on the API path.
+      # check-latest forces a manifest fetch even though 3.12 is preinstalled,
+      # so the job actually contacts the mirror instead of short-circuiting on
+      # the tool cache.
+      - name: setup-python with explicit mirror
+        uses: ./
+        with:
+          python-version: 3.12
+          check-latest: true
+          mirror: https://raw.githubusercontent.com/actions/python-versions/refs/heads/main
+
+      - name: Run simple code
+        run: python -c 'import sys; print(sys.version)'
+
   setup-versions-from-file:
     name: Setup ${{ matrix.python }} ${{ matrix.os }} version file
     runs-on: ${{ matrix.os }}
@@ -83,7 +109,7 @@ jobs:
             python: 3.10.11
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: build-version-file ${{ matrix.python }}
         run: echo ${{ matrix.python }} > .python-version
@@ -133,7 +159,7 @@ jobs:
             python: 3.10.11
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: build-version-file ${{ matrix.python }}
         run: echo ${{ matrix.python }} > .python-version
@@ -181,7 +207,7 @@ jobs:
             python: 3.10.11
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: build-version-file ${{ matrix.python }}
         run: |
@@ -234,7 +260,7 @@ jobs:
             python: 3.10.11
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: build-version-file ${{ matrix.python }}
         run: |
@@ -291,7 +317,7 @@ jobs:
             python: pypy3.11-7.3.18
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: build-tool-versions-file ${{ matrix.python }}
         run: |
@@ -325,7 +351,7 @@ jobs:
             python: 3.10.11
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: build-version-file ${{ matrix.python }}
         run: |
@@ -378,7 +404,7 @@ jobs:
             python: 3.10.11
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: build-version-file ${{ matrix.python }}
         run: |
@@ -427,7 +453,7 @@ jobs:
           ]
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: setup-python 3.15.0-beta.3
         id: setup-python
@@ -470,7 +496,7 @@ jobs:
           ]
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: setup-python 3.15-dev
         id: setup-python
@@ -507,7 +533,7 @@ jobs:
           ]
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: setup-python 3.15
         id: setup-python
@@ -549,7 +575,7 @@ jobs:
             python: '3.10'
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: setup-python ${{ matrix.python }}
         id: setup-python
@@ -584,7 +610,7 @@ jobs:
           - os: windows-11-arm
             python-version: '3.10'
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup Python and check latest
         uses: ./
         with:
@@ -616,7 +642,7 @@ jobs:
             macos-latest
           ]
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup Python and check latest
         uses: ./
         with:
