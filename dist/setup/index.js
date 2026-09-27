@@ -16069,7 +16069,13 @@ function processHeader (request, key, val) {
       } else if (typeof val[i] === 'object') {
         throw new InvalidArgumentError(`invalid ${key} header`)
       } else {
-        arr.push(`${val[i]}`)
+        // Coerce primitives (and reject unsafe coercions such as functions
+        // with a crafted toString/Symbol.toPrimitive).
+        const str = `${val[i]}`
+        if (!isValidHeaderValue(str)) {
+          throw new InvalidArgumentError(`invalid ${key} header`)
+        }
+        arr.push(str)
       }
     }
     val = arr
@@ -16080,7 +16086,12 @@ function processHeader (request, key, val) {
   } else if (val === null) {
     val = ''
   } else {
+    // Coerce primitives (and reject unsafe coercions such as functions
+    // with a crafted toString/Symbol.toPrimitive).
     val = `${val}`
+    if (!isValidHeaderValue(val)) {
+      throw new InvalidArgumentError(`invalid ${key} header`)
+    }
   }
 
   if (headerName === 'host') {
@@ -17452,6 +17463,7 @@ const {
   RequestContentLengthMismatchError,
   ResponseContentLengthMismatchError,
   RequestAbortedError,
+  InvalidArgumentError,
   HeadersTimeoutError,
   HeadersOverflowError,
   SocketError,
@@ -18435,8 +18447,16 @@ function writeH1 (client, request) {
     }
     body = bodyStream.stream
     contentLength = bodyStream.length
-  } else if (util.isBlobLike(body) && request.contentType == null && body.type) {
-    headers.push('content-type', body.type)
+  } else if (util.isBlobLike(body) && request.contentType == null) {
+    const contentType = body.type
+    if (contentType) {
+      const contentTypeValue = `${contentType}`
+      if (!util.isValidHeaderValue(contentTypeValue)) {
+        util.errorRequest(client, request, new InvalidArgumentError('invalid content-type header'))
+        return false
+      }
+      headers.push('content-type', contentTypeValue)
+    }
   }
 
   if (body && typeof body.read === 'function') {
@@ -21909,6 +21929,28 @@ function calculateRetryAfterHeader (retryAfter) {
   return new Date(retryAfter).getTime() - current
 }
 
+function validatePartialResponseContentLength (headers, range, statusCode, retryCount) {
+  const contentLength = headers['content-length']
+  if (contentLength == null) {
+    return null
+  }
+
+  if (!Number.isFinite(range.start) || !Number.isFinite(range.end)) {
+    return null
+  }
+
+  const length = Number(contentLength)
+  const expectedLength = range.end - range.start + 1
+  if (!Number.isFinite(length) || length !== expectedLength) {
+    return new RequestRetryError('Content-Length mismatch', statusCode, {
+      headers,
+      data: { count: retryCount }
+    })
+  }
+
+  return null
+}
+
 class RetryHandler {
   constructor (opts, handlers) {
     const { retryOptions, ...dispatchOpts } = opts
@@ -22123,6 +22165,12 @@ class RetryHandler {
         return false
       }
 
+      const contentLengthError = validatePartialResponseContentLength(headers, contentRange, statusCode, this.retryCount)
+      if (contentLengthError != null) {
+        this.abort(contentLengthError)
+        return false
+      }
+
       const { start, size, end = size - 1 } = contentRange
 
       assert(this.start === start, 'content-range mismatch')
@@ -22144,6 +22192,12 @@ class RetryHandler {
             resume,
             statusMessage
           )
+        }
+
+        const contentLengthError = validatePartialResponseContentLength(headers, range, statusCode, this.retryCount)
+        if (contentLengthError != null) {
+          this.abort(contentLengthError)
+          return false
         }
 
         const { start, size, end = size - 1 } = range
@@ -26390,7 +26444,7 @@ function validateCookiePath (path) {
 
     if (
       code < 0x20 || // exclude CTLs (0-31)
-      code === 0x7F || // DEL
+      code > 0x7E || // exclude DEL and non-ascii
       code === 0x3B // ;
     ) {
       throw new Error('Invalid cookie path')
@@ -26399,16 +26453,80 @@ function validateCookiePath (path) {
 }
 
 /**
- * I have no idea why these values aren't allowed to be honest,
- * but Deno tests these. - Khafra
+ * <let-dig> ::= <letter> | <digit>
+ *
+ * <letter> ::= any one of the 52 alphabetic characters A through Z in
+ * upper case and a through z in lower case
+ *
+ * <digit> ::= any one of the ten digits 0 through 9r
+ *
+ * @see https://www.rfc-editor.org/rfc/rfc1034#section-3.5
+ * @param {number} code
+ */
+function isLetterOrDigit (code) {
+  return (
+    (code >= 0x30 && code <= 0x39) || // 0-9
+    (code >= 0x41 && code <= 0x5A) || // A-Z
+    (code >= 0x61 && code <= 0x7A) // a-z
+  )
+}
+
+/**
+ * Validates a cookie domain against the "preferred name syntax".
+ *
+ * <domain>      ::= <subdomain> | " "
+ * <subdomain>   ::= <label> | <subdomain> "." <label>
+ * <label>       ::= <let-dig> [ [ <ldh-str> ] <let-dig> ]
+ * <ldh-str>     ::= <let-dig-hyp> | <let-dig-hyp> <ldh-str>
+ * <let-dig-hyp> ::= <let-dig> | "-"
+ *
+ * @see https://www.rfc-editor.org/rfc/rfc1034#section-3.5
+ * @see https://www.rfc-editor.org/rfc/rfc1123#section-2.1
+ * @see https://www.rfc-editor.org/rfc/rfc1035#section-2.3.4
  * @param {string} domain
  */
 function validateCookieDomain (domain) {
-  if (
-    domain.startsWith('-') ||
-    domain.endsWith('.') ||
-    domain.endsWith('-')
-  ) {
+  // <domain> ::= <subdomain> | " "
+  if (domain === ' ') {
+    return
+  }
+
+  if (domain.length > 255) {
+    throw new Error('Invalid cookie domain')
+  }
+
+  let labelLength = 0
+
+  for (let i = 0; i < domain.length; ++i) {
+    const code = domain.charCodeAt(i)
+
+    if (code === 0x2E) {
+      if (labelLength === 0) {
+        throw new Error('Invalid cookie domain')
+      }
+
+      if (domain.charCodeAt(i - 1) === 0x2D) { // "-"
+        throw new Error('Invalid cookie domain')
+      }
+
+      labelLength = 0
+      continue
+    }
+
+    if (labelLength === 0 && !isLetterOrDigit(code)) {
+      throw new Error('Invalid cookie domain')
+    }
+
+    if (!isLetterOrDigit(code) && code !== 0x2D) { // "-"
+      throw new Error('Invalid cookie domain')
+    }
+
+    if (++labelLength > 63) {
+      throw new Error('Invalid cookie domain')
+    }
+  }
+
+  if (labelLength === 0 || domain.charCodeAt(domain.length - 1) === 0x2D) { // "-"
     throw new Error('Invalid cookie domain')
   }
 }
@@ -26551,7 +26669,13 @@ function stringify (cookie) {
 
     const [key, ...value] = part.split('=')
 
-    out.push(`${key.trim()}=${value.join('=')}`)
+    const trimmedKey = key.trim()
+    const joinedValue = value.join('=')
+
+    validateCookieName(trimmedKey)
+    validateCookieValue(joinedValue)
+
+    out.push(`${trimmedKey}=${joinedValue}`)
   }
 
   return out.join('; ')
@@ -41084,7 +41208,7 @@ function combine(acc, pre, values, max, maxLength, dropEmpties) {
 }
 // The expansion values of a single numeric (`1..5`) or alphabetic (`a..e..2`)
 // sequence body.
-function expandSequence(body, isAlphaSequence, max) {
+function expandSequence(body, isAlphaSequence, max, maxLength) {
     const n = body.split(/\.\./);
     const N = [];
     // A sequence body always splits into two or three parts, but the compiler
@@ -41107,6 +41231,7 @@ function expandSequence(body, isAlphaSequence, max) {
         test = gte;
     }
     const pad = n.some(isPadded);
+    let length = 0;
     for (let i = x; test(i, y) && N.length < max; i += incr) {
         let c;
         if (isAlphaSequence) {
@@ -41130,7 +41255,10 @@ function expandSequence(body, isAlphaSequence, max) {
                 }
             }
         }
+        if (length + c.length > maxLength)
+            break;
         N.push(c);
+        length += c.length;
     }
     return N;
 }
@@ -41184,7 +41312,7 @@ function expand_(str, max, maxLength, isTop) {
         }
         let values;
         if (isSequence) {
-            values = expandSequence(m.body, isAlphaSequence, max);
+            values = expandSequence(m.body, isAlphaSequence, max, maxLength);
         }
         else {
             let n = parseCommaParts(m.body);
@@ -41202,9 +41330,31 @@ function expand_(str, max, maxLength, isTop) {
                 }
                 /* c8 ignore stop */
             }
+            // Values that `combine` is going to drop as empty produce no result, so
+            // they must not count against `max` - otherwise `{a,,b}` with `max: 2`
+            // would stop at `['a', '']` and yield one result instead of two. Skipping
+            // them outright keeps `values` bounded while leaving `max` a bound on
+            // *kept* results.
+            let dropsEmpties = dropEmpties && !m.post.length && !pre;
+            for (let d = 0; dropsEmpties && d < acc.length; d++) {
+                if (acc[d]) {
+                    dropsEmpties = false;
+                }
+            }
             values = [];
-            for (let j = 0; j < n.length; j++) {
-                values.push.apply(values, expand_(n[j], max, maxLength, false));
+            let valuesLength = 0;
+            outer: for (let j = 0; j < n.length; j++) {
+                const expanded = expand_(n[j], max, maxLength, false);
+                for (let k = 0; k < expanded.length; k++) {
+                    const v = expanded[k];
+                    if (dropsEmpties && !v)
+                        continue;
+                    if (values.length >= max || valuesLength + v.length > maxLength) {
+                        break outer;
+                    }
+                    values.push(v);
+                    valuesLength += v.length;
+                }
             }
         }
         acc = combine(acc, pre, values, max, maxLength, dropEmpties && !m.post.length);
@@ -41272,6 +41422,9 @@ module.exports = /*#__PURE__*/JSON.parse('{"name":"@actions/cache","version":"6.
 /******/ }
 /******/ 
 /************************************************************************/
+/******/ /* webpack/runtime/asset-relocator-loader */
+/******/ if (typeof __nccwpck_require__ !== 'undefined') __nccwpck_require__.ab = decodeURIComponent(new URL('.', import.meta.url).pathname).slice(import.meta.url.match(/^file:\/\/\/\w:/) ? 1 : 0, -1) + "/";
+/******/ 
 /******/ /* webpack/runtime/compat get default export */
 /******/ (() => {
 /******/ 	// getDefaultExport function for compatibility with non-harmony modules
@@ -41341,10 +41494,6 @@ module.exports = /*#__PURE__*/JSON.parse('{"name":"@actions/cache","version":"6.
 /******/ 		Object.defineProperty(exports, '__esModule', { value: true });
 /******/ 	};
 /******/ })();
-/******/ 
-/******/ /* webpack/runtime/compat */
-/******/ 
-/******/ if (typeof __nccwpck_require__ !== 'undefined') __nccwpck_require__.ab = new URL('.', import.meta.url).pathname.slice(import.meta.url.match(/^file:\/\/\/\w:/) ? 1 : 0, -1) + "/";
 /******/ 
 /************************************************************************/
 var __webpack_exports__ = {};
@@ -98693,12 +98842,114 @@ function _unique(values) {
 
 
 
-const TOKEN = getInput('token');
-const AUTH = !TOKEN ? undefined : `token ${TOKEN}`;
-const MANIFEST_REPO_OWNER = 'actions';
-const MANIFEST_REPO_NAME = 'python-versions';
-const MANIFEST_REPO_BRANCH = 'main';
-const MANIFEST_URL = `https://raw.githubusercontent.com/${MANIFEST_REPO_OWNER}/${MANIFEST_REPO_NAME}/${MANIFEST_REPO_BRANCH}/versions-manifest.json`;
+const DEFAULT_REPO_OWNER = 'actions';
+const DEFAULT_REPO_NAME = 'python-versions';
+const DEFAULT_REPO_BRANCH = 'main';
+const DEFAULT_MIRROR = `https://raw.githubusercontent.com/${DEFAULT_REPO_OWNER}/${DEFAULT_REPO_NAME}/${DEFAULT_REPO_BRANCH}`;
+// Matches https://raw.githubusercontent.com/{owner}/{repo}/{branch} and the
+// equivalent https://raw.githubusercontent.com/{owner}/{repo}/refs/heads/{branch}
+// form, capturing the bare branch in both. The GitHub tree API wants the bare
+// branch, so the optional refs/heads/ prefix is consumed, not captured.
+const REPO_COORDS_RE = /^https:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/(?:refs\/heads\/)?([^/]+)\/?$/;
+function getToken() {
+    return getInput('token');
+}
+function getMirrorToken() {
+    return getInput('mirror-token');
+}
+// Memoized per raw input value so the mirror is validated once per run rather
+// than on every call. `getManifestUrl()` is also used to build the "version not
+// found" message in find-python.ts, where re-validating would replace the real
+// cause with an invalid-mirror error.
+const mirrorCache = new Map();
+function getMirror() {
+    const input = getInput('mirror') || DEFAULT_MIRROR;
+    let resolved = mirrorCache.get(input);
+    if (!resolved) {
+        const url = input.trim().replace(/\/+$/, '');
+        try {
+            new URL(url);
+            resolved = { url };
+        }
+        catch {
+            resolved = { error: new Error(`Invalid 'mirror' URL: "${url}"`) };
+        }
+        mirrorCache.set(input, resolved);
+    }
+    if ('error' in resolved)
+        throw resolved.error;
+    return resolved.url;
+}
+function getManifestUrl() {
+    return `${getMirror()}/versions-manifest.json`;
+}
+// Whether the user set `mirror` to something other than the built-in default.
+// action.yml gives `mirror` a default, so core.getInput('mirror') is never
+// empty; callers that want "did the user opt into a custom mirror" must compare
+// against DEFAULT_MIRROR rather than test for a falsy input. Normalizes the
+// same way getMirror() does but never throws, so a warning path can call it
+// even when the mirror is malformed.
+function isMirrorCustomized() {
+    const input = getInput('mirror');
+    if (!input)
+        return false;
+    return input.trim().replace(/\/+$/, '') !== DEFAULT_MIRROR;
+}
+// Origin (scheme + host + port) of the mirror, so `mirror-token` is matched
+// against the exact origin the user nominated. Comparing origin rather than
+// host alone means a manifest served over https that points a download_url at
+// http://same-host/... does NOT get the token — the scheme must match too.
+// Deliberately not wrapped in try/catch: an invalid mirror throws here just as
+// it does in getManifestUrl(), so both agree a bad mirror is fatal.
+function getMirrorOrigin() {
+    return new URL(getMirror()).origin;
+}
+function isGitHubHost(host) {
+    return (host === 'github.com' ||
+        host.endsWith('.github.com') ||
+        host.endsWith('.githubusercontent.com'));
+}
+// Warned at most once per distinct mirror; resolveRepoCoords() is called from
+// several paths within a single run.
+const warnedMirrors = new Set();
+function resolveRepoCoords() {
+    const mirror = getMirror();
+    const m = REPO_COORDS_RE.exec(mirror);
+    if (m)
+        return { owner: m[1], repo: m[2], branch: m[3] };
+    // A raw.githubusercontent.com URL that doesn't parse is a branch name
+    // containing a slash (e.g. .../{owner}/{repo}/feature/riscv), which is
+    // indistinguishable from a deeper path. getMirror() succeeded above, so the
+    // URL is well-formed and this parse cannot throw.
+    const isRawGitHub = new URL(mirror).host === 'raw.githubusercontent.com';
+    if (!warnedMirrors.has(mirror) && isRawGitHub) {
+        warnedMirrors.add(mirror);
+        warning(`Could not parse owner/repo/branch out of mirror "${mirror}", so the manifest will be fetched directly from the raw URL instead of through the GitHub REST API. ` +
+            `The request is still authenticated with your token, because raw.githubusercontent.com is a GitHub host. ` +
+            `Branch names containing '/' are not supported for the REST API path; use a branch without a slash if you want the manifest fetched through the API.`);
+    }
+    return null;
+}
+// Mirror origin with `mirror-token` set gets the token verbatim, so internal
+// mirrors can choose their own scheme (Bearer, Basic, ...). GitHub hosts get
+// `token ${token}`. Anything else is anonymous — neither credential is sent to
+// a host the user didn't nominate.
+function authForUrl(url) {
+    let parsed;
+    try {
+        parsed = new URL(url);
+    }
+    catch {
+        return undefined;
+    }
+    const mirrorToken = getMirrorToken();
+    if (mirrorToken && parsed.origin === getMirrorOrigin())
+        return mirrorToken;
+    const token = getToken();
+    if (token && isGitHubHost(parsed.host))
+        return `token ${token}`;
+    return undefined;
+}
 function getLinuxOsRelease() {
     try {
         const content = external_fs_namespaceObject.readFileSync('/etc/os-release', 'utf8');
@@ -98824,17 +99075,25 @@ async function fetchValidManifest(source, fetcher) {
     throw new Error(`Failed to fetch a valid manifest from ${source} after ${attempts} attempt(s): ${lastError?.message}`);
 }
 async function getManifest() {
-    try {
-        return await fetchValidManifest('the GitHub API', install_python_getManifestFromRepo);
+    // Only GitHub repo mirrors can be fetched via the API. Checking up front
+    // avoids burning MANIFEST_FETCH_MAX_ATTEMPTS with backoff on a throw that
+    // could never succeed.
+    if (resolveRepoCoords()) {
+        try {
+            return await fetchValidManifest('the GitHub API', install_python_getManifestFromRepo);
+        }
+        catch (err) {
+            core_debug('Fetching the manifest via the API failed.');
+            if (err instanceof Error) {
+                core_debug(err.message);
+            }
+            else {
+                core_debug('An unexpected error occurred while fetching the manifest.');
+            }
+        }
     }
-    catch (err) {
-        core_debug('Fetching the manifest via the API failed.');
-        if (err instanceof Error) {
-            core_debug(err.message);
-        }
-        else {
-            core_debug('An unexpected error occurred while fetching the manifest.');
-        }
+    else {
+        core_debug(`Mirror "${getMirror()}" is not a GitHub repo URL; fetching the manifest by URL.`);
     }
     try {
         return await fetchValidManifest('the raw URL', getManifestFromURL);
@@ -98846,15 +99105,32 @@ async function getManifest() {
     }
 }
 function install_python_getManifestFromRepo() {
-    core_debug(`Getting manifest from ${MANIFEST_REPO_OWNER}/${MANIFEST_REPO_NAME}@${MANIFEST_REPO_BRANCH}`);
-    return getManifestFromRepo(MANIFEST_REPO_OWNER, MANIFEST_REPO_NAME, AUTH, MANIFEST_REPO_BRANCH);
+    const coords = resolveRepoCoords();
+    if (!coords) {
+        throw new Error(`Mirror "${getMirror()}" is not a GitHub repo URL; falling back to raw URL fetch.`);
+    }
+    core_debug(`Getting manifest from ${coords.owner}/${coords.repo}@${coords.branch}`);
+    // This only runs for GitHub repo mirrors, where `mirror-token` is the user's
+    // explicit intent for that repo. The target is always api.github.com, which
+    // requires the `token ` prefix, so the host rule in authForUrl() doesn't
+    // apply here.
+    const token = getToken();
+    const mirrorToken = getMirrorToken();
+    const auth = mirrorToken
+        ? `token ${mirrorToken}`
+        : token
+            ? `token ${token}`
+            : undefined;
+    return getManifestFromRepo(coords.owner, coords.repo, auth, coords.branch);
 }
 async function getManifestFromURL() {
     core_debug('Falling back to fetching the manifest using raw URL.');
+    const manifestUrl = getManifestUrl();
     const http = new lib_HttpClient('tool-cache');
-    const response = await http.getJson(MANIFEST_URL);
+    const auth = authForUrl(manifestUrl);
+    const response = await http.getJson(manifestUrl, auth ? { authorization: auth } : undefined);
     if (!response.result) {
-        throw new Error(`Unable to get manifest from ${MANIFEST_URL}`);
+        throw new Error(`Unable to get manifest from ${manifestUrl}`);
     }
     return response.result;
 }
@@ -98897,7 +99173,7 @@ async function installCpythonFromRelease(release) {
     let pythonPath = '';
     try {
         const fileName = getDownloadFileName(downloadUrl);
-        pythonPath = await downloadTool(downloadUrl, fileName, AUTH);
+        pythonPath = await downloadTool(downloadUrl, fileName, authForUrl(downloadUrl));
         info('Extract downloaded archive');
         let pythonExtractedFolder;
         if (utils_IS_WINDOWS) {
@@ -99015,7 +99291,7 @@ async function useCpythonVersion(version, architecture, updateEnvironment, check
         if (freethreaded) {
             msg.push(`Free threaded versions are only available for Python 3.13.0 and later.`);
         }
-        msg.push(`The list of all available versions can be found here: ${MANIFEST_URL}`);
+        msg.push(`The list of all available versions can be found here: ${getManifestUrl()}`);
         throw new Error(msg.join(external_os_.EOL));
     }
     const _binDir = binDir(installDir);
@@ -99417,8 +99693,8 @@ function findPyPyInstallDirForWindows(pythonVersion) {
 
 
 
-const install_graalpy_TOKEN = getInput('token');
-const install_graalpy_AUTH = !install_graalpy_TOKEN ? undefined : `token ${install_graalpy_TOKEN}`;
+const TOKEN = getInput('token');
+const AUTH = !TOKEN ? undefined : `token ${TOKEN}`;
 async function installGraalPy(graalpyVersion, architecture, allowPreReleases, releases) {
     let downloadDir;
     releases = releases ?? (await getAvailableGraalPyVersions());
@@ -99441,7 +99717,7 @@ async function installGraalPy(graalpyVersion, architecture, allowPreReleases, re
     const downloadUrl = `${foundAsset.browser_download_url}`;
     info(`Downloading GraalPy from "${downloadUrl}" ...`);
     try {
-        const graalpyPath = await downloadTool(downloadUrl, undefined, install_graalpy_AUTH);
+        const graalpyPath = await downloadTool(downloadUrl, undefined, AUTH);
         info('Extracting downloaded archive...');
         if (utils_IS_WINDOWS) {
             downloadDir = await extractZip(graalpyPath);
@@ -99482,8 +99758,8 @@ async function installGraalPy(graalpyVersion, architecture, allowPreReleases, re
 async function getAvailableGraalPyVersions() {
     const http = new lib_HttpClient('tool-cache');
     const headers = {};
-    if (install_graalpy_AUTH) {
-        headers.authorization = install_graalpy_AUTH;
+    if (AUTH) {
+        headers.authorization = AUTH;
     }
     /*
     Get releases first.
@@ -100150,7 +100426,7 @@ function combine(acc, pre, values, max, maxLength, dropEmpties) {
 }
 // The expansion values of a single numeric (`1..5`) or alphabetic (`a..e..2`)
 // sequence body.
-function expandSequence(body, isAlphaSequence, max) {
+function expandSequence(body, isAlphaSequence, max, maxLength) {
     const n = body.split(/\.\./);
     const N = [];
     // A sequence body always splits into two or three parts, but the compiler
@@ -100173,6 +100449,7 @@ function expandSequence(body, isAlphaSequence, max) {
         test = gte;
     }
     const pad = n.some(isPadded);
+    let length = 0;
     for (let i = x; test(i, y) && N.length < max; i += incr) {
         let c;
         if (isAlphaSequence) {
@@ -100196,7 +100473,10 @@ function expandSequence(body, isAlphaSequence, max) {
                 }
             }
         }
+        if (length + c.length > maxLength)
+            break;
         N.push(c);
+        length += c.length;
     }
     return N;
 }
@@ -100250,7 +100530,7 @@ function expand_(str, max, maxLength, isTop) {
         }
         let values;
         if (isSequence) {
-            values = expandSequence(m.body, isAlphaSequence, max);
+            values = expandSequence(m.body, isAlphaSequence, max, maxLength);
         }
         else {
             let n = parseCommaParts(m.body);
@@ -100268,9 +100548,31 @@ function expand_(str, max, maxLength, isTop) {
                 }
                 /* c8 ignore stop */
             }
+            // Values that `combine` is going to drop as empty produce no result, so
+            // they must not count against `max` - otherwise `{a,,b}` with `max: 2`
+            // would stop at `['a', '']` and yield one result instead of two. Skipping
+            // them outright keeps `values` bounded while leaving `max` a bound on
+            // *kept* results.
+            let dropsEmpties = dropEmpties && !m.post.length && !pre;
+            for (let d = 0; dropsEmpties && d < acc.length; d++) {
+                if (acc[d]) {
+                    dropsEmpties = false;
+                }
+            }
             values = [];
-            for (let j = 0; j < n.length; j++) {
-                values.push.apply(values, expand_(n[j], max, maxLength, false));
+            let valuesLength = 0;
+            outer: for (let j = 0; j < n.length; j++) {
+                const expanded = expand_(n[j], max, maxLength, false);
+                for (let k = 0; k < expanded.length; k++) {
+                    const v = expanded[k];
+                    if (dropsEmpties && !v)
+                        continue;
+                    if (values.length >= max || valuesLength + v.length > maxLength) {
+                        break outer;
+                    }
+                    values.push(v);
+                    valuesLength += v.length;
+                }
             }
         }
         acc = combine(acc, pre, values, max, maxLength, dropEmpties && !m.post.length);
@@ -103175,7 +103477,7 @@ class CacheDistributor {
                     .split('\n')
                     .join(',')} or ${CACHE_DEPENDENCY_BACKUP_PATH}`
                 : this.cacheDependencyPath.split('\n').join(',');
-            throw new Error(`No file in ${process.cwd()} matched to [${file}], make sure you have checked out the target repository`);
+            throw new Error(`No file in ${process.cwd()} matched to [${file}] for ${this.packageManager}. Make sure you have checked out the target repository, or consider removing the cache step if there are no dependencies to cache.`);
         }
         const cachePath = await this.getCacheGlobalDirectories();
         saveState(State.CACHE_PATHS, cachePath);
@@ -103432,11 +103734,24 @@ function getCacheDistributor(packageManager, pythonVersion, cacheDependencyPath)
 
 
 
+
 function isPyPyVersion(versionSpec) {
     return versionSpec.startsWith('pypy');
 }
 function isGraalPyVersion(versionSpec) {
     return versionSpec.startsWith('graalpy');
+}
+// `mirror` only redirects CPython distributions. PyPy and GraalPy resolve from
+// downloads.python.org and the GitHub releases API respectively, so warn rather
+// than let the input look like it applied. Only warns when the user actually
+// set a custom mirror: action.yml gives `mirror` a default, so a plain
+// getInput() check would fire on every pypy-*/graalpy-* run.
+function warnIfMirrorUnsupported(versionSpec) {
+    if (!isMirrorCustomized()) {
+        return;
+    }
+    const implementation = isPyPyVersion(versionSpec) ? 'PyPy' : 'GraalPy';
+    warning(`The 'mirror' input only applies to CPython distributions and is ignored for ${implementation} ('${versionSpec}'), which is downloaded from its own upstream source.`);
 }
 async function cacheDependencies(cache, pythonVersion) {
     const cacheDependencyPath = getInput('cache-dependency-path') || undefined;
@@ -103499,11 +103814,13 @@ async function run() {
             startGroup('Installed versions');
             for (const version of versions) {
                 if (isPyPyVersion(version)) {
+                    warnIfMirrorUnsupported(version);
                     const installed = await findPyPyVersion(version, arch, updateEnvironment, checkLatest, allowPreReleases);
                     pythonVersion = `${installed.resolvedPyPyVersion}-${installed.resolvedPythonVersion}`;
                     info(`Successfully set up PyPy ${installed.resolvedPyPyVersion} with Python (${installed.resolvedPythonVersion})`);
                 }
                 else if (isGraalPyVersion(version)) {
+                    warnIfMirrorUnsupported(version);
                     const installed = await findGraalPyVersion(version, arch, updateEnvironment, checkLatest, allowPreReleases);
                     pythonVersion = `${installed}`;
                     info(`Successfully set up GraalPy ${installed}`);
